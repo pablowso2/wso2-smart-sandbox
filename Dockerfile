@@ -328,40 +328,7 @@ for oas_file in /opt/src/openapi/*.yaml /opt/src/openapi/*.json; do
     fi
 done
 
-echo "--- 3. Generando AI APIs (OpenAI, Gemini, Mistral) con Guardrails ---"
-PROVIDERS=("OpenAI:openai:https://api.openai.com/v1" "Gemini:gemini:https://generativelanguage.googleapis.com/v1beta" "MistralAI:mistral:https://api.mistral.ai/v1")
-
-for provider_info in "${PROVIDERS[@]}"; do
-    IFS=':' read -r llm_name llm_id llm_url <<< "$provider_info"
-    
-    echo ">> Construyendo AI API: $llm_name..."
-    cd /opt
-    python3 ai_api_generator.py "$llm_name" "$llm_id" "$llm_url"
-    
-    apictl import api -f "AI_$llm_name" -e dev -k --update
-    
-    AI_API_ID="null"
-    AI_RETRIES=0
-    while [ "$AI_API_ID" == "null" ] && [ $AI_RETRIES -lt 15 ]; do
-        sleep 2
-        AI_JSON=$(curl -k -s -X GET "https://localhost:9443/api/am/publisher/v4/apis?query=name:AI_$llm_name" -H "Authorization: Bearer $TOKEN")
-        AI_API_ID=$(echo "$AI_JSON" | jq -r '.list[0].id // "null"')
-        AI_RETRIES=$((AI_RETRIES+1))
-    done
-
-    if [ "$AI_API_ID" != "null" ] && [ ! -z "$AI_API_ID" ]; then
-        echo "   Publicando y Suscribiendo a $llm_name..."
-        curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/apis/change-lifecycle?apiId=$AI_API_ID&action=Publish" -H "Authorization: Bearer $TOKEN" > /dev/null
-        sleep 4
-        curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/subscriptions" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "{\"applicationId\":\"$APP_ID\",\"apiId\":\"$AI_API_ID\",\"throttlingPolicy\":\"Unlimited\"}" > /dev/null 2>&1 || true
-    else
-        echo "   ERROR: Timeout indexando AI API $llm_name"
-    fi
-    
-    rm -rf "AI_$llm_name"
-done
-
-echo "--- 4. Generando Claves de Produccion y Sandbox ---"
+echo "--- 3. Generando Claves de Produccion y Sandbox ---"
 if [ "$APP_ID" != "null" ] && [ ! -z "$APP_ID" ]; then
     PROD_RESPONSE=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/applications/$APP_ID/generate-keys" \
       -H "Authorization: Bearer $TOKEN" \
