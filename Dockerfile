@@ -26,7 +26,12 @@ RUN mkdir -p /etc/apt/keyrings \
  && apt-get install -y temurin-21-jdk \
  && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
+# --- MAGIA MULTI-ARQUITECTURA PARA JAVA ---
+# Detectamos si es amd64 o arm64 y creamos un acceso directo genérico
+RUN ARCH=$(dpkg --print-architecture) && \
+    ln -s /usr/lib/jvm/temurin-21-jdk-$ARCH /usr/lib/jvm/default-jdk
+
+ENV JAVA_HOME=/usr/lib/jvm/default-jdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 # Instalar WSO2 APIM
@@ -36,7 +41,7 @@ RUN wget https://github.com/wso2/product-apim/releases/download/v4.6.0/wso2am-4.
  && unzip wso2am-4.6.0.zip \
  && rm wso2am-4.6.0.zip
 
-# Instalar apictl v4.6.0
+# Instalar apictl v4.6.0 (Ya venía preparado para multi-arch)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
         APICTL_URL="https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-arm64.tar.gz"; \
