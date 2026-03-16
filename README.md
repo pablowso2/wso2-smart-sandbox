@@ -85,4 +85,4 @@ This project leverages:
 * `jq` for JSON payload parsing during the CI/CD bash script execution.
 
 ---
-*Created for fast-paced API Development, QA Sandboxing, and AI/LLM Integration Demos.*
+*Created for fast-paced API Development, QA Sandboxing, and AI/LLM Integration Demos. By Pablo Sagarna*
