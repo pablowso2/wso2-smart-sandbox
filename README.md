@@ -1,422 +1,88 @@
-FROM ubuntu:22.04
+# 🚀 WSO2 APIM & MCP Zero-Click Automator
 
-ENV DEBIAN_FRONTEND=noninteractive
+A fully automated, containerized solution to spin up a complete WSO2 API Manager 4.6.0 environment from a simple OpenAPI Specification (OAS). 
 
-# Dependencias base (+ Python)
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    unzip \
-    zip \
-    jq \
-    python3 \
-    python3-yaml \
-    ca-certificates \
-    gnupg \
-    lsb-release \
-    netcat \
- && rm -rf /var/lib/apt/lists/*
+This project is designed to drastically reduce the time needed to create demonstrations, test environments, and AI-ready API integrations. Just drop your Swagger/OAS file, run a single Docker command, and get a fully published API with mocking, a deployed Model Context Protocol (MCP) server, and ready-to-use OAuth2 tokens.
 
-# Temurin OpenJDK 21
-RUN mkdir -p /etc/apt/keyrings \
- && wget -O /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public \
- && echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(lsb_release -cs) main" \
-    > /etc/apt/sources.list.d/adoptium.list \
- && apt-get update \
- && apt-get install -y temurin-21-jdk \
- && rm -rf /var/lib/apt/lists/*
+## ✨ Features (The "Zero-Click" Magic)
 
-# Magia Multi-Arquitectura para Java (Funciona en Mac y Linux)
-RUN ARCH=$(dpkg --print-architecture) && \
-    ln -s /usr/lib/jvm/temurin-21-jdk-$ARCH /usr/lib/jvm/default-jdk
+By simply running Docker Compose, this automation pipeline performs the following steps without any human intervention:
 
-ENV JAVA_HOME=/usr/lib/jvm/default-jdk
-ENV PATH=$JAVA_HOME/bin:$PATH
+1. **APIM Initialization:** Spins up a fresh instance of WSO2 API Manager 4.6.0.
+2. **OAS to API:** Automatically parses your OpenAPI file and creates a Publisher API.
+3. **Auto-Mocking:** Configures an `INLINE` backend mock based on the examples provided in your OAS file (No real backend required!).
+4. **MCP Server Generation:** Dynamically runs a Python script to translate your OAS into an LLM-compatible MCP (Model Context Protocol) Server.
+5. **Gateway Deployment:** Deploys both the API and the MCP Server to the Default Gateway and publishes them.
+6. **Consumer Automation:** Creates a `DefaultApplication` in the Developer Portal.
+7. **Auto-Subscription:** Subscribes the application to both the API and the MCP Server with an "Unlimited" business plan.
+8. **Token Generation:** Automatically generates Production and Sandbox OAuth2 access tokens and prints them directly to your console.
 
-# Instalar WSO2 APIM
-WORKDIR /opt
+## 📁 Directory Structure
 
-RUN wget https://github.com/wso2/product-apim/releases/download/v4.6.0/wso2am-4.6.0.zip \
- && unzip wso2am-4.6.0.zip \
- && rm wso2am-4.6.0.zip
+Ensure your project follows this structure before running:
 
-# Instalador apictl inteligente con Fallbacks Multi-Arquitectura
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-        curl -fsSL "https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-arm64.tar.gz" -o apictl.tar.gz || \
-        curl -fsSL "https://github.com/wso2/product-apim-tooling/releases/download/v4.4.0/apictl-4.4.0-linux-arm64.tar.gz" -o apictl.tar.gz; \
-    else \
-        curl -fsSL "https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-x64.tar.gz" -o apictl.tar.gz || \
-        curl -fsSL "https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-amd64.tar.gz" -o apictl.tar.gz || \
-        curl -fsSL "https://github.com/wso2/product-apim-tooling/releases/download/v4.4.0/apictl-4.4.0-linux-x64.tar.gz" -o apictl.tar.gz; \
-    fi && \
-    mkdir -p temp_apictl && \
-    tar -xzf apictl.tar.gz -C temp_apictl --strip-components=1 && \
-    cp temp_apictl/apictl /usr/local/bin/ && \
-    chmod +x /usr/local/bin/apictl && \
-    rm -rf temp_apictl apictl.tar.gz
+```text
+.
+├── docker-compose.yml
+├── Dockerfile
+└── src/
+    └── openapi/
+        └── your_openapi_spec.yaml  <-- Drop your OAS 3.0/Swagger file here!
+```
+*(Note: You can place `.yaml` or `.json` files inside the `src/openapi/` folder).*
 
-RUN mkdir -p /opt/src/openapi
+## 🚀 Getting Started
 
-# -----------------------------------------------------------------
-# SCRIPT DE PYTHON PARA GENERAR EL MCP
-# -----------------------------------------------------------------
-RUN cat <<'EOF' > /opt/mcp_generator.py
-import yaml, json, sys, os, re, shutil
+### Prerequisites
+* Docker
+* Docker Compose
 
-oas_file = sys.argv[1]
-api_name = sys.argv[2]
-api_version = sys.argv[3]
-api_id = sys.argv[4]
-api_context = sys.argv[5]
+### Execution
 
-with open(oas_file, 'r') as f:
-    spec = yaml.safe_load(f)
+1. Place your OpenAPI specification file inside the `./src/openapi/` directory.
+2. Open your terminal in the root directory of this project.
+3. Run the following command:
 
-operations = []
-for path, methods in spec.get('paths', {}).items():
-    for method, details in methods.items():
-        if method.lower() not in ['get', 'post', 'put', 'delete', 'patch']: continue
-        
-        op_id = details.get('operationId', f"{method}_{re.sub(r'[^a-zA-Z0-9]', '', path)}")
-        desc = details.get('summary', details.get('description', f"Executa {method} en {path}"))
-        
-        props, req = {}, []
-        for p in details.get('parameters', []):
-            name = p.get('name')
-            props[name] = {"description": p.get('description', name)}
-            if p.get('required'): req.append(name)
-            
-        schema = {"type": "object", "properties": props}
-        if req: schema["required"] = req
-        
-        operations.append({
-            "id": "",
-            "target": op_id,
-            "feature": "TOOL",
-            "authType": "Application & Application User",
-            "throttlingPolicy": "Unlimited",
-            "scopes": [],
-            "schemaDefinition": json.dumps(schema, indent=2),
-            "description": desc,
-            "operationPolicies": {"request": [], "response": [], "fault": []},
-            "apiOperationMapping": {
-                "apiId": api_id,
-                "apiName": api_name,
-                "apiVersion": api_version,
-                "apiContext": api_context,
-                "backendOperation": {"target": path, "verb": method.upper()}
-            }
-        })
+```bash
+docker-compose down -v && docker-compose up --build
+```
+*(Using `down -v` ensures a clean WSO2 database on every fresh start).*
 
-mcp_data = {
-    "type": "mcp_server",
-    "version": "v4.6.0",
-    "data": {
-        "name": f"MCP_{api_name}",
-        "displayName": f"MCP {api_name}",
-        "context": f"/mcp{api_name.lower().replace(' ', '')}",
-        "version": api_version,
-        "provider": "admin",
-        "lifeCycleStatus": "PUBLISHED",
-        "audiences": ["all"],
-        "transport": ["http", "https"],
-        "securityScheme": ["oauth_basic_auth_api_key_mandatory", "oauth2"],
-        "visibility": "PUBLIC",
-        "policies": ["Unlimited"], 
-        "subtypeConfiguration": {"subtype": "EXISTING_API"},
-        "operations": operations
-    }
-}
+### 🎯 What to Expect
 
-os.makedirs('mcp_build/Definitions', exist_ok=True)
-with open('mcp_build/mcp_server.yaml', 'w') as f:
-    yaml.dump(mcp_data, f, sort_keys=False)
-with open('mcp_build/mcp_server_meta.yaml', 'w') as f:
-    yaml.dump({"name": f"MCP_{api_name}", "version": api_version}, f)
-shutil.copy(oas_file, 'mcp_build/Definitions/swagger.yaml')
-EOF
+The build process will download WSO2, setup `apictl`, and start the server. Once the server is up, the automation script will trigger. Keep an eye on your terminal; once the process finishes, you will be greeted with a success banner containing your tokens:
 
-# -----------------------------------------------------------------
-# SCRIPT DE PYTHON PARA GENERAR AI APIs CON GUARDRAILS
-# -----------------------------------------------------------------
-RUN cat <<'EOF' > /opt/ai_api_generator.py
-import yaml, os, sys
+```text
+==================================================================
+ 🎉 TODO LISTO: API + MOCK + PORTAL + MCP SERVER DESPLEGADO 🎉
+ 
+ Usa estos tokens en Postman o en tu LLM:
+ 🔴 Token PRODUCCION : eyJhbGciOiJSUzI1...
+ 🔵 Token SANDBOX    : eyJhbGciOiJSUzI1...
+==================================================================
+```
 
-llm_name = sys.argv[1]
-llm_id = sys.argv[2]
-llm_url = sys.argv[3]
+## 🌐 Accessing the Portals
 
-project_dir = f"AI_{llm_name}"
-os.makedirs(f"{project_dir}/Definitions", exist_ok=True)
+You can access the WSO2 Web Interfaces using the default credentials (`admin` / `admin`):
 
-api_data = {
-    "type": "api",
-    "version": "v4.6.0",
-    "data": {
-        "name": f"AI_{llm_name}",
-        "context": f"/ai/{llm_id}",
-        "version": "1.0.0",
-        "type": "HTTP",
-        "subtypeConfiguration": {
-            "subtype": "AIAPI",
-            "llmProviderId": llm_id,
-            "llmProviderName": llm_name
-        },
-        "endpointConfig": {
-            "endpoint_type": "http",
-            "production_endpoints": {"url": llm_url},
-            "sandbox_endpoints": {"url": llm_url}
-        },
-        "policies": ["Unlimited"],
-        "operations": [
-            {
-                "target": "/chat/completions",
-                "verb": "POST",
-                "authType": "Application & Application User",
-                "throttlingPolicy": "Unlimited",
-                "operationPolicies": {
-                    "request": [
-                        {
-                            "policyName": "cc-word-count-guardrail",
-                            "policyVersion": "v1",
-                            "parameters": {"maxWordCount": "200"}
-                        },
-                        {
-                            "policyName": "cc-semantic-prompt-guardrail",
-                            "policyVersion": "v1",
-                            "parameters": {
-                                "deniedTopics": "politics, religion, violence, self-harm, hate speech",
-                                "action": "BLOCK"
-                            }
-                        }
-                    ],
-                    "response": [],
-                    "fault": []
-                }
-            }
-        ]
-    }
-}
+* **Publisher Portal:** [https://localhost:9443/publisher](https://localhost:9443/publisher)
+* **Developer Portal:** [https://localhost:9443/devportal](https://localhost:9443/devportal)
+* **Carbon Management Console:** [https://localhost:9443/carbon](https://localhost:9443/carbon)
 
-with open(f"{project_dir}/api.yaml", 'w') as f:
-    yaml.dump(api_data, f, sort_keys=False)
+## 🛠️ Testing Your Setup
 
-deployments = [{"name": "Default", "vhost": "localhost", "displayOnDevportal": True}]
-with open(f"{project_dir}/deployment_environments.yaml", 'w') as f:
-    yaml.dump(deployments, f, sort_keys=False)
+* **Standard API:** Open Postman, paste your `PRODUCCION` token as a Bearer Token, and hit your Gateway endpoints (`https://localhost:8243/your-api-context/1.0.0/...`). You will receive the mocked responses defined in your OAS.
+* **LLM Integration:** Connect an LLM (like Claude Desktop or Cursor) to the generated MCP Server endpoint using the generated API Keys to let the AI interact with your mock APIs natively.
 
-swagger_data = {
-    "openapi": "3.0.1",
-    "info": {"title": f"AI_{llm_name}", "version": "1.0.0"},
-    "paths": {"/chat/completions": {"post": {"responses": {"200": {"description": "OK"}}}}}
-}
-with open(f"{project_dir}/Definitions/swagger.yaml", 'w') as f:
-    yaml.dump(swagger_data, f, sort_keys=False)
-EOF
+## ⚙️ Under the Hood
 
-# -----------------------------------------------------------------
-# SCRIPT BASH PRINCIPAL
-# -----------------------------------------------------------------
-RUN cat <<'EOF' > /opt/start.sh
-#!/bin/bash
-echo "Iniciando WSO2 API Manager en background..."
-sh /opt/wso2am-4.6.0/bin/api-manager.sh start
+This project leverages:
+* `wso2am-4.6.0.zip` base distribution.
+* `apictl` (WSO2 CLI tool) for artifact initialization and status management.
+* WSO2 Publisher & DevPortal Native REST APIs for deployment, application creation, and token generation.
+* Embedded `Python 3` for precise YAML manipulation and MCP translation.
+* `jq` for JSON payload parsing during the CI/CD bash script execution.
 
-echo "Esperando a que el servidor levante en el puerto 9443..."
-SECONDS_WAITED=0
-while ! nc -z localhost 9443; do
-  sleep 5
-  SECONDS_WAITED=$((SECONDS_WAITED+5))
-  echo "   ... Aún levantando. Tiempo transcurrido: ${SECONDS_WAITED}s (WSO2 suele tardar 60-120s en iniciar)"
-done
-
-echo "¡Puerto 9443 disponible! Esperando 45 segundos para la estabilización de los servicios internos..."
-sleep 45
-
-echo "--- Generando Token REST API Nativo ---"
-B64_CRED=$(echo -n "admin:admin" | base64)
-DCR_RESPONSE=$(curl -k -s -X POST https://localhost:9443/client-registration/v0.17/register \
-  -H "Authorization: Basic $B64_CRED" \
-  -H "Content-Type: application/json" \
-  -d '{"callbackUrl":"www.google.lk","clientName":"rest_api_client","owner":"admin","grantType":"password refresh_token","saasApp":true}')
-CLIENT_ID=$(echo $DCR_RESPONSE | jq -r .clientId)
-CLIENT_SECRET=$(echo $DCR_RESPONSE | jq -r .clientSecret)
-B64_APP=$(echo -n "$CLIENT_ID:$CLIENT_SECRET" | base64)
-
-TOKEN_RESPONSE=$(curl -k -s -X POST https://localhost:9443/oauth2/token \
-  -H "Authorization: Basic $B64_APP" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=admin&password=admin&scope=apim:api_create apim:api_view apim:api_publish apim:app_manage apim:sub_manage apim:subscribe apim:mcp_server_view apim:mcp_server_create apim:mcp_server_manage apim:mcp_server_publish")
-TOKEN=$(echo $TOKEN_RESPONSE | jq -r .access_token)
-
-apictl add env dev --apim https://localhost:9443
-apictl login dev -u admin -p admin -k
-
-echo "--- 1. Creando Consumidor (AutoTestApp) ---"
-APP_ID=$(curl -k -s -X GET "https://localhost:9443/api/am/devportal/v3/applications?query=name:DefaultApplication" -H "Authorization: Bearer $TOKEN" | jq -r '.list[]? | select(.name == "DefaultApplication") | .applicationId' | head -n 1)
-
-if [ "$APP_ID" == "null" ] || [ -z "$APP_ID" ]; then
-    echo ">> DefaultApplication no encontrada. Creandola..."
-    APP_RESPONSE=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/applications" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"DefaultApplication","throttlingPolicy":"Unlimited","description":"App por defecto para pruebas"}')
-    APP_ID=$(echo $APP_RESPONSE | jq -r '.applicationId')
-    sleep 2
-fi
-
-echo "--- 2. Procesando OAS -> CORS -> MOCK -> MCP ---"
-for oas_file in /opt/src/openapi/*.yaml /opt/src/openapi/*.json; do
-    if [ -f "$oas_file" ]; then
-        filename=$(basename -- "$oas_file")
-        project_name="${filename%.*}"
-        
-        echo ">> Construyendo API base: $filename"
-        apictl init "$project_name" --oas "$oas_file"
-        apictl import api -f "$project_name" -e dev -k --update
-        
-        api_name=$(grep "^  name:" "$project_name/api.yaml" | head -1 | awk '{print $2}' | tr -d '\r"')
-        api_version=$(grep "^  version:" "$project_name/api.yaml" | head -1 | awk '{print $2}' | tr -d '\r"')
-        
-        echo ">> Buscando UUID de la API (Polling)..."
-        API_ID="null"
-        RETRIES=0
-        while [ "$API_ID" == "null" ] && [ $RETRIES -lt 15 ]; do
-            sleep 2
-            API_JSON=$(curl -k -s -X GET "https://localhost:9443/api/am/publisher/v4/apis?query=name:$api_name" -H "Authorization: Bearer $TOKEN")
-            API_ID=$(echo "$API_JSON" | jq -r '.list[0].id // "null"')
-            RETRIES=$((RETRIES+1))
-        done
-        
-        API_CONTEXT=$(echo "$API_JSON" | jq -r '.list[0].context')
-        
-        if [ "$API_ID" != "null" ] && [ ! -z "$API_ID" ]; then
-            
-            echo ">> Aplicando políticas de CORS e INLINE Endpoint..."
-            API_FULL=$(curl -k -s -X GET "https://localhost:9443/api/am/publisher/v4/apis/$API_ID" -H "Authorization: Bearer $TOKEN")
-            
-            # --- FIX IMPORTANTE: Añadimos del(.endpointConfig) para evitar el ruteo al 8081 ---
-            UPDATED_API=$(echo "$API_FULL" | jq '.endpointImplementationType = "INLINE" | .policies = ["Unlimited"] | .corsConfiguration = {"corsConfigurationEnabled": true, "accessControlAllowOrigins": ["*"], "accessControlAllowCredentials": false, "accessControlAllowHeaders": ["authorization", "Access-Control-Allow-Origin", "Content-Type", "SOAPAction", "apikey", "Internal-Key", "Accept", "Origin"], "accessControlAllowMethods": ["GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"]} | del(.authorizationHeader, .securityScheme, .endpointConfig)')
-            
-            curl -k -s -X PUT "https://localhost:9443/api/am/publisher/v4/apis/$API_ID" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$UPDATED_API" > /dev/null
-            
-            echo ">> Generando scripts de Mock INLINE..."
-            curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/apis/$API_ID/generate-mock-scripts" -H "Authorization: Bearer $TOKEN" > /dev/null
-            
-            echo ">> Desplegando y Publicando API base..."
-            apictl create api-revision -a "$api_name" -v "$api_version" -e dev -k > /dev/null 2>&1 || true
-            apictl deploy api-revision -a "$api_name" -v "$api_version" --rev 1 -g Default -e dev -k > /dev/null 2>&1 || true
-            curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/apis/change-lifecycle?apiId=$API_ID&action=Publish" -H "Authorization: Bearer $TOKEN" > /dev/null
-
-            echo ">> Dando tiempo al DevPortal para indexar la API..."
-            sleep 4
-
-            echo ">> Suscribiendo aplicación a la API base..."
-            SUB_API_RESP=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/subscriptions" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "{\"applicationId\":\"$APP_ID\",\"apiId\":\"$API_ID\",\"throttlingPolicy\":\"Unlimited\"}")
-            
-            echo ">> Generando e Importando MCP Server (LLM Tools)..."
-            cd /opt
-            rm -rf mcp_build
-            python3 mcp_generator.py "$oas_file" "$api_name" "$api_version" "$API_ID" "$API_CONTEXT"
-            apictl import mcp-server -f mcp_build -e dev -k --update
-            
-            echo ">> Buscando UUID del MCP (Polling)..."
-            MCP_ID="null"
-            MCP_RETRIES=0
-            while [ "$MCP_ID" == "null" ] && [ $MCP_RETRIES -lt 15 ]; do
-                sleep 2
-                MCP_JSON=$(curl -k -s -X GET "https://localhost:9443/api/am/publisher/v4/mcp-servers?query=name:MCP_$api_name" -H "Authorization: Bearer $TOKEN")
-                MCP_ID=$(echo "$MCP_JSON" | jq -r '.list[0].id // "null"')
-                MCP_RETRIES=$((MCP_RETRIES+1))
-            done
-
-            if [ "$MCP_ID" != "null" ] && [ "$MCP_ID" != "" ]; then
-                echo ">> MCP Encontrado ($MCP_ID). Forzando despliegue en Gateway..."
-                REV_RESP=$(curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/mcp-servers/$MCP_ID/revisions" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"description":"AutoDeploy"}')
-                REV_ID=$(echo "$REV_RESP" | jq -r '.id // empty')
-                
-                if [ ! -z "$REV_ID" ]; then
-                    curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/mcp-servers/$MCP_ID/deploy-revision?revisionId=$REV_ID" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '[{"name":"Default","vhost":"localhost","displayOnDevportal":true}]' > /dev/null
-                fi
-
-                echo ">> Dando tiempo al DevPortal para indexar el MCP..."
-                sleep 4
-
-                echo ">> Suscribiendo aplicación al MCP..."
-                SUB_MCP_RESP=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/subscriptions" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "{\"applicationId\":\"$APP_ID\",\"apiId\":\"$MCP_ID\",\"throttlingPolicy\":\"Unlimited\"}")
-            else
-                 echo ">> ERROR: Timeout esperando la indexación del MCP."
-            fi
-        else
-            echo ">> ERROR: Timeout esperando la indexación de la API $api_name"
-        fi
-        
-        rm -rf "$project_name" /opt/mcp_build
-    fi
-done
-
-echo "--- 3. Generando AI APIs (OpenAI, Gemini, Mistral) con Guardrails ---"
-PROVIDERS=("OpenAI:openai:https://api.openai.com/v1" "Gemini:gemini:https://generativelanguage.googleapis.com/v1beta" "MistralAI:mistral:https://api.mistral.ai/v1")
-
-for provider_info in "${PROVIDERS[@]}"; do
-    IFS=':' read -r llm_name llm_id llm_url <<< "$provider_info"
-    
-    echo ">> Construyendo AI API: $llm_name..."
-    cd /opt
-    python3 ai_api_generator.py "$llm_name" "$llm_id" "$llm_url"
-    
-    apictl import api -f "AI_$llm_name" -e dev -k --update
-    
-    AI_API_ID="null"
-    AI_RETRIES=0
-    while [ "$AI_API_ID" == "null" ] && [ $AI_RETRIES -lt 15 ]; do
-        sleep 2
-        AI_JSON=$(curl -k -s -X GET "https://localhost:9443/api/am/publisher/v4/apis?query=name:AI_$llm_name" -H "Authorization: Bearer $TOKEN")
-        AI_API_ID=$(echo "$AI_JSON" | jq -r '.list[0].id // "null"')
-        AI_RETRIES=$((AI_RETRIES+1))
-    done
-
-    if [ "$AI_API_ID" != "null" ] && [ ! -z "$AI_API_ID" ]; then
-        echo "   Publicando y Suscribiendo a $llm_name..."
-        curl -k -s -X POST "https://localhost:9443/api/am/publisher/v4/apis/change-lifecycle?apiId=$AI_API_ID&action=Publish" -H "Authorization: Bearer $TOKEN" > /dev/null
-        sleep 4
-        curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/subscriptions" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "{\"applicationId\":\"$APP_ID\",\"apiId\":\"$AI_API_ID\",\"throttlingPolicy\":\"Unlimited\"}" > /dev/null 2>&1 || true
-    else
-        echo "   ERROR: Timeout indexando AI API $llm_name"
-    fi
-    
-    rm -rf "AI_$llm_name"
-done
-
-echo "--- 4. Generando Claves de Produccion y Sandbox ---"
-if [ "$APP_ID" != "null" ] && [ ! -z "$APP_ID" ]; then
-    
-    PROD_RESPONSE=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/applications/$APP_ID/generate-keys" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"keyType":"PRODUCTION","grantTypesToBeSupported":["client_credentials","password"],"validityTime":"360000"}')
-    PROD_TOKEN=$(echo $PROD_RESPONSE | jq -r '.token.accessToken')
-
-    SANDBOX_RESPONSE=$(curl -k -s -X POST "https://localhost:9443/api/am/devportal/v3/applications/$APP_ID/generate-keys" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"keyType":"SANDBOX","grantTypesToBeSupported":["client_credentials","password"],"validityTime":"360000"}')
-    SANDBOX_TOKEN=$(echo $SANDBOX_RESPONSE | jq -r '.token.accessToken')
-    
-    >&2 echo ""
-    >&2 echo "=================================================================="
-    >&2 echo " 🎉 TODO LISTO: API + MOCK + PORTAL + MCP SERVER DESPLEGADO 🎉"
-    >&2 echo " "
-    >&2 echo " Usa estos tokens en Postman o en tu LLM:"
-    >&2 echo " 🔴 Token PRODUCCION : $PROD_TOKEN"
-    >&2 echo " 🔵 Token SANDBOX    : $SANDBOX_TOKEN"
-    >&2 echo "=================================================================="
-    >&2 echo ""
-fi
-
-tail -f /opt/wso2am-4.6.0/repository/logs/wso2carbon.log
-EOF
-
-RUN chmod +x /opt/start.sh
-
-EXPOSE 9443 9763 8243 8280
-
-CMD ["/opt/start.sh"]
+---
+*Created for fast-paced API Development, QA Sandboxing, and AI/LLM Integration Demos. By Pablo Sagarna*
