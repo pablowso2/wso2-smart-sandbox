@@ -32,16 +32,16 @@ ENV PATH=$JAVA_HOME/bin:$PATH
 # Instalar WSO2 APIM
 WORKDIR /opt
 
-RUN wget https://github.com/wso2/product-apim/releases/download/v4.6.0/wso2am-4.6.0.zip \
- && unzip wso2am-4.6.0.zip \
- && rm wso2am-4.6.0.zip
+RUN wget https://github.com/wso2/product-apim/releases/download/v4.7.0-rc2/wso2am-4.7.0-rc2.zip \
+ && unzip wso2am-4.7.0-rc2.zip \
+ && rm wso2am-4.7.0-rc2.zip
 
 # Instalar apictl v4.6.0
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-        APICTL_URL="https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-arm64.tar.gz"; \
+        APICTL_URL="https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz"; \
     else \
-        APICTL_URL="https://github.com/wso2/product-apim-tooling/releases/download/v4.6.0/apictl-4.6.0-linux-x64.tar.gz"; \
+        APICTL_URL="https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz"; \
     fi && \
     curl -fsSL "$APICTL_URL" -o apictl.tar.gz && \
     mkdir -p temp_apictl && \
@@ -137,7 +137,7 @@ EOF
 RUN cat <<'EOF' > /opt/start.sh
 #!/bin/bash
 echo "Iniciando WSO2 API Manager en background..."
-sh /opt/wso2am-4.6.0/bin/api-manager.sh start
+sh /opt/wso2am-4.7.0/bin/api-manager.sh start
 
 echo "Esperando a que el servidor levante en el puerto 9443..."
 while ! nc -z localhost 9443; do sleep 5; done
@@ -284,7 +284,7 @@ if [ "$APP_ID" != "null" ] && [ ! -z "$APP_ID" ]; then
     >&2 echo ""
 fi
 
-tail -f /opt/wso2am-4.6.0/repository/logs/wso2carbon.log
+tail -f /opt/wso2am-4.7.0/repository/logs/wso2carbon.log
 EOF
 
 RUN chmod +x /opt/start.sh
