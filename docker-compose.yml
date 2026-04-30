@@ -4,6 +4,14 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+      args:
+        - APIM_URL=${APIM_URL}
+        - APIM_FOLDER=${APIM_FOLDER}
+        - IS_URL=${IS_URL}
+        - IS_FOLDER=${IS_FOLDER}
+        - APICTL_URL_ARM64=${APICTL_URL_ARM64}
+        - APICTL_URL_X64=${APICTL_URL_X64}
+        - IS_PORT_OFFSET=${IS_PORT_OFFSET:-3}
     environment:
       - JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
     ports:
@@ -11,11 +19,12 @@ services:
       - "9763:9763"
       - "8243:8243"
       - "8280:8280"
+      - "${IS_PORT:-9446}:${IS_PORT:-9446}"
+    command: ["${WSO2_MODE:-apim}"] 
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9443"]
       interval: 30s
       timeout: 10s
       retries: 5
     volumes:
-      # Mapeamos la ruta exacta relativa al docker-compose.yml
       - ./src/openapi:/opt/src/openapi

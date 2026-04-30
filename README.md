@@ -36,6 +36,21 @@ Ensure your project follows this structure before running:
 ### Prerequisites
 * Docker
 * Docker Compose
+* Create a .env file in the root directory with the following structure:
+
+```text
+# WSO2 APIM Configuration
+APIM_URL=[https://github.com/wso2/product-apim/releases/download/v4.7.0-rc2/wso2am-4.7.0-rc2.zip](https://github.com/wso2/product-apim/releases/download/v4.7.0-rc2/wso2am-4.7.0-rc2.zip)
+APIM_FOLDER=wso2am-4.7.0
+
+# WSO2 Identity Server Configuration
+IS_URL=[https://github.com/wso2/product-is/releases/download/v7.3.0-rc1/wso2is-7.3.0-rc1.zip](https://github.com/wso2/product-is/releases/download/v7.3.0-rc1/wso2is-7.3.0-rc1.zip)
+IS_FOLDER=wso2is-7.3.0
+
+# API Controller (apictl) Downloads
+APICTL_URL_ARM64=[https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz](https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz)
+APICTL_URL_X64=[https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-x64.tar.gz](https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-x64.tar.gz)
+```
 
 ### Execution
 
@@ -44,31 +59,47 @@ Ensure your project follows this structure before running:
 3. Run the following command:
 
 ```bash
-docker-compose down -v && docker-compose up --build
+To start ONLY the API Manager:
+./run.sh -apim
+
+To start ONLY the Identity Server:
+./run.sh -is
+
+To start BOTH (APIM + IS):
+./run.sh -is-apim
 ```
-*(Using `down -v` ensures a clean WSO2 database on every fresh start).*
 
 ### 🎯 What to Expect
 
 The build process will download WSO2, setup `apictl`, and start the server. Once the server is up, the automation script will trigger. Keep an eye on your terminal; once the process finishes, you will be greeted with a success banner containing your tokens:
 
 ```text
+APIM
 ==================================================================
- 🎉 TODO LISTO: API + MOCK + PORTAL + MCP SERVER DESPLEGADO 🎉
+ 🎉 TODO LISTO: API + MOCK + PORTAL + MCP SERVER DEPLOYED 🎉
  
  Usa estos tokens en Postman o en tu LLM:
  🔴 Token PRODUCCION : eyJhbGciOiJSUzI1...
  🔵 Token SANDBOX    : eyJhbGciOiJSUzI1...
 ==================================================================
+
+IS
+==================================================================
+ 🎉 TODO IS SERVER DEPLOYED 🎉
+  ==================================================================
 ```
 
 ## 🌐 Accessing the Portals
 
+APIM
 You can access the WSO2 Web Interfaces using the default credentials (`admin` / `admin`):
 
 * **Publisher Portal:** [https://localhost:9443/publisher](https://localhost:9443/publisher)
 * **Developer Portal:** [https://localhost:9443/devportal](https://localhost:9443/devportal)
 * **Carbon Management Console:** [https://localhost:9443/carbon](https://localhost:9443/carbon)
+
+IS
+* **Console:**[https://localhost:9446/console](https://localhost:9446/console)
 
 ## 🛠️ Testing Your Setup
 
@@ -78,11 +109,12 @@ You can access the WSO2 Web Interfaces using the default credentials (`admin` / 
 ## ⚙️ Under the Hood
 
 This project leverages:
-* `wso2am-4.6.0.zip` base distribution.
+* `wso2am` based on the config .env distribution.
+* `wsois` based on the config .env distribution.
 * `apictl` (WSO2 CLI tool) for artifact initialization and status management.
 * WSO2 Publisher & DevPortal Native REST APIs for deployment, application creation, and token generation.
 * Embedded `Python 3` for precise YAML manipulation and MCP translation.
 * `jq` for JSON payload parsing during the CI/CD bash script execution.
 
 ---
-*Created for fast-paced API Development, QA Sandboxing, and AI/LLM Integration Demos. By Pablo Sagarna*
+*Created for fast-paced API Development and WSO2 IS, QA Sandboxing, and AI/LLM Integration Demos. By Pablo Sagarna*
