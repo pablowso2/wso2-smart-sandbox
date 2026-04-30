@@ -50,6 +50,9 @@ IS_FOLDER=wso2is-7.3.0
 # API Controller (apictl) Downloads
 APICTL_URL_ARM64=[https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz](https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-arm64.tar.gz)
 APICTL_URL_X64=[https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-x64.tar.gz](https://github.com/wso2/product-apim-tooling/releases/download/v4.7.0-rc2/apictl-4.7.0-rc2-linux-x64.tar.gz)
+
+# Port OFFSSET configuration for WSO2 Identity Server
+IS_PORT_OFFSET=3
 ```
 
 ### Execution
@@ -67,6 +70,8 @@ To start ONLY the Identity Server:
 
 To start BOTH (APIM + IS):
 ./run.sh -is-apim
+
+To clean the images you need to add -clean in any of above
 ```
 
 ### 🎯 What to Expect

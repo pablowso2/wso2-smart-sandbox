@@ -9,10 +9,12 @@ ARG IS_URL
 ARG IS_FOLDER
 ARG APICTL_URL_ARM64
 ARG APICTL_URL_X64
+ARG IS_PORT_OFFSET
 
-# Exportar nombres de carpetas para que el script start.sh los pueda usar en tiempo de ejecución
+# Exportar nombres de carpetas y offset para que el script start.sh los pueda usar
 ENV APIM_FOLDER=${APIM_FOLDER}
 ENV IS_FOLDER=${IS_FOLDER}
+ENV IS_PORT_OFFSET=${IS_PORT_OFFSET}
 
 # Dependencias base (+ Python)
 RUN apt-get update && apt-get install -y \
@@ -169,8 +171,8 @@ if [ "$MODE" = "is" ]; then
     echo ">> Iniciando WSO2 Identity Server (Puerto Default 9443)..."
     sh /opt/${IS_FOLDER}/bin/wso2server.sh start
 elif [ "$MODE" = "is-apim" ]; then
-    echo ">> Iniciando WSO2 Identity Server con portOffset=3 (Puerto 9446)..."
-    sh /opt/${IS_FOLDER}/bin/wso2server.sh start -DportOffset=3
+    echo ">> Iniciando WSO2 Identity Server con portOffset=${IS_PORT_OFFSET}..."
+    sh /opt/${IS_FOLDER}/bin/wso2server.sh start -DportOffset=${IS_PORT_OFFSET}
 fi
 
 # 2. Lógica de automatización (Aplica solo si APIM está encendido)
@@ -335,7 +337,7 @@ EOF
 
 RUN chmod +x /opt/start.sh
 
-# Exponer puertos APIM (9443...) e IS con Offset=3 (9446)
+# Exponer puertos APIM (9443...) e IS (9446...)
 EXPOSE 9443 9763 8243 8280 9446
 
 # ENTRYPOINT define el ejecutable, CMD le pasa el argumento por defecto
