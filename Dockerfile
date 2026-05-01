@@ -40,7 +40,7 @@ RUN mkdir -p /etc/apt/keyrings \
  && apt-get install -y temurin-21-jdk \
  && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
+ENV JAVA_HOME=/usr/lib/jvm/default-jdk
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 WORKDIR /opt
