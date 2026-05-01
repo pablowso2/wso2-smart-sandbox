@@ -12,14 +12,12 @@ services:
         - APICTL_URL_ARM64=${APICTL_URL_ARM64}
         - APICTL_URL_X64=${APICTL_URL_X64}
         - IS_PORT_OFFSET=${IS_PORT_OFFSET:-3}
-    environment:
-      - JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
     ports:
       - "9443:9443"
       - "9763:9763"
       - "8243:8243"
       - "8280:8280"
-      - "${IS_PORT:-9446}:${IS_PORT:-9446}"
+      - "9446:9446" # Puerto fijo mapeado para el WSO2 IS (9443 + Offset)
     command: ["${WSO2_MODE:-apim}"] 
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9443"]

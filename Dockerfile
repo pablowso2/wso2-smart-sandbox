@@ -31,16 +31,17 @@ RUN apt-get update && apt-get install -y \
     netcat \
  && rm -rf /var/lib/apt/lists/*
 
-# Temurin OpenJDK 21
+# Temurin OpenJDK 21 (Arreglo Multi-Arquitectura Mac/Linux)
 RUN mkdir -p /etc/apt/keyrings \
  && wget -O /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public \
  && echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(lsb_release -cs) main" \
     > /etc/apt/sources.list.d/adoptium.list \
  && apt-get update \
  && apt-get install -y temurin-21-jdk \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -s /usr/lib/jvm/temurin-21-jdk-* /usr/lib/jvm/java-temurin
 
-ENV JAVA_HOME=/usr/lib/jvm/default-jdk
+ENV JAVA_HOME=/usr/lib/jvm/java-temurin
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 WORKDIR /opt
